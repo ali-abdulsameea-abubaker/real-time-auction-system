@@ -1,0 +1,306 @@
+<!-- public/auctioneer.html -->
+<!-- StAuth10222: I Ali Abubaker, 000857347 certify that this material is my original work. No other person's work has been used without due acknowledgement.
+  I have not made my work available to anyone else. -->
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Auctioneer</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: linear-gradient(135deg, #eef2f3, #d9e4ec);
+            color: #222;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 800px;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #0078D7;
+        }
+
+        h3,
+        h4 {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        input,
+        button {
+            font-size: 16px;
+            padding: 8px;
+            margin-top: 5px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            background-color: #0078D7;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background-color: #005ea6;
+        }
+
+        .big {
+            font-size: 20px;
+            margin-top: 10px;
+        }
+
+        .highest {
+            font-size: 24px;
+            font-weight: bold;
+            color: green;
+            margin-top: 10px;
+        }
+
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        th {
+            background-color: #0078D7;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        #timer {
+            font-size: 24px;
+            font-weight: bold;
+            color: #e91e63;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div class="container">
+        <h1>Auctioneer</h1>
+
+        <div id="create-section">
+            <h3>Create Auction</h3>
+            <label>Item name: <input id="itemName" type="text" required></label><br><br>
+            <label>Starting price: <input id="startingPrice" type="number" min="0.01" step="0.01"
+                    required></label><br><br>
+            <label>Time limit: <input id="timeLimit" type="range" min="10" max="80" step="10" value="30"> <span
+                    id="timeValue">30</span>s</label><br><br>
+            <button id="startBtn">Start Auction</button>
+            <button style="margin: 10px;" onclick="location.href='/'">Return to Home</button>
+
+            <p id="createError" class="error"></p>
+        </div>
+
+        <div id="results-section" style="display:none;">
+            <h3>Current Auction</h3>
+            <div>Item: <span id="resItem"></span></div>
+            <div class="big">Timer: <span id="timer">--</span></div>
+            <div class="highest">Highest: <span id="resHighest"></span> by <span id="resHighestBidder"></span></div>
+            <div>Total bids: <span id="totalBids">0</span></div>
+
+            <h4>Bidder Stats</h4>
+            <table id="biddersTable">
+                <thead>
+                    <tr>
+                        <th>Bidder</th>
+                        <th>Highest bid</th>
+                        <th>Number of bids</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <h4>Bid History (most recent first)</h4>
+            <table id="historyTable">
+                <thead>
+                    <tr>
+                        <th>Bidder</th>
+                        <th>Price</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <br>
+            <button id="newAuctionBtn" disabled>Create New Auction</button>
+            <button style="margin: 10px;" onclick="location.href='/'">Return to Home</button>
+
+        </div>
+
+
+        <script>
+            const socket = io();
+
+            const createSection = document.getElementById('create-section');
+            const resultsSection = document.getElementById('results-section');
+            const startBtn = document.getElementById('startBtn');
+            const newAuctionBtn = document.getElementById('newAuctionBtn');
+            const timeLimitInput = document.getElementById('timeLimit');
+            const timeValue = document.getElementById('timeValue');
+            const itemNameInput = document.getElementById('itemName');
+            const startingPriceInput = document.getElementById('startingPrice');
+            const createError = document.getElementById('createError');
+
+            const resItem = document.getElementById('resItem');
+            const resHighest = document.getElementById('resHighest');
+            const resHighestBidder = document.getElementById('resHighestBidder');
+            const totalBids = document.getElementById('totalBids');
+            const biddersTableBody = document.querySelector('#biddersTable tbody');
+            const historyTableBody = document.querySelector('#historyTable tbody');
+            const timerEl = document.getElementById('timer');
+
+            let timerInterval = null;
+            let auctionEndTimestamp = null;
+
+            timeLimitInput.addEventListener('input', () => {
+                timeValue.textContent = timeLimitInput.value;
+            });
+
+            startBtn.addEventListener('click', () => {
+                createError.textContent = '';
+                const name = itemNameInput.value.trim();
+                const startingPrice = Number(startingPriceInput.value);
+                const timeLimit = Number(timeLimitInput.value);
+                if (!name) { createError.textContent = 'Item name required'; return; }
+                if (isNaN(startingPrice) || startingPrice <= 0) { createError.textContent = 'Starting price must be > 0'; return; }
+                // send JSON to server
+                socket.emit('auction:start', { itemName: name, startingPrice: startingPrice, timeLimitSeconds: timeLimit });
+            });
+
+            socket.on('auction:started', (data) => {
+                // show results section and hide create form
+                createSection.style.display = 'none';
+                resultsSection.style.display = 'block';
+                newAuctionBtn.disabled = true;
+
+                resItem.textContent = data.itemName;
+                resHighest.textContent = data.highestBid.toFixed(2);
+                resHighestBidder.textContent = data.highestBidder;
+                totalBids.textContent = 0;
+                biddersTableBody.innerHTML = '';
+                historyTableBody.innerHTML = '';
+
+                auctionEndTimestamp = data.endTimestamp;
+                startLocalTimer();
+            });
+
+            socket.on('auction:update', (data) => {
+                resHighest.textContent = Number(data.highestBid).toFixed(2);
+                resHighestBidder.textContent = data.highestBidder;
+                totalBids.textContent = data.bidHistory ? data.bidHistory.length : 0;
+
+                // update bidders table
+                const bidders = data.bidders || {};
+                biddersTableBody.innerHTML = '';
+                for (const name in bidders) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td>${name}</td><td>${Number(bidders[name].highestBid).toFixed(2)}</td><td>${bidders[name].bidCount}</td>`;
+                    biddersTableBody.appendChild(row);
+                }
+
+                // update history
+                historyTableBody.innerHTML = '';
+                const history = data.bidHistory || [];
+                for (const h of history) {
+                    const tr = document.createElement('tr');
+                    const t = new Date(h.timestamp || Date.now()).toLocaleTimeString();
+                    tr.innerHTML = `<td>${h.name}</td><td>${Number(h.price).toFixed(2)}</td><td>${t}</td>`;
+                    historyTableBody.appendChild(tr);
+                }
+            });
+
+            socket.on('auction:ended', (data) => {
+                // display winner
+                timerEl.textContent = '00:00';
+                newAuctionBtn.disabled = false;
+                resHighest.textContent = Number(data.price).toFixed(2);
+                resHighestBidder.textContent = data.winner;
+                // stop timer
+                stopLocalTimer();
+                alert('Auction ended. Winner: ' + data.winner + ' Price: $' + Number(data.price).toFixed(2));
+            });
+
+            socket.on('auction:reset', () => {
+                // auctioneer chose to reset/create new auction
+                resultsSection.style.display = 'none';
+                createSection.style.display = 'block';
+                // reset inputs
+                itemNameInput.value = '';
+                startingPriceInput.value = '';
+                timeLimitInput.value = 30;
+                timeValue.textContent = 30;
+                stopLocalTimer();
+            });
+
+            newAuctionBtn.addEventListener('click', () => {
+                socket.emit('auction:new', {});
+            });
+
+            socket.on('error', (e) => {
+                // server error can be a string or object
+                console.error('server error', e);
+                if (e && e.message) createError.textContent = e.message;
+            });
+
+            function startLocalTimer() {
+                stopLocalTimer();
+                if (!auctionEndTimestamp) {
+                    timerEl.textContent = '--';
+                    return;
+                }
+                function tick() {
+                    const remaining = Math.max(0, Math.ceil((auctionEndTimestamp - Date.now()) / 1000));
+                    const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
+                    const ss = String(remaining % 60).padStart(2, '0');
+                    timerEl.textContent = `${mm}:${ss}`;
+                    if (remaining <= 0) {
+                        stopLocalTimer();
+                        newAuctionBtn.disabled = false;
+                    }
+                }
+                tick();
+                timerInterval = setInterval(tick, 500);
+            }
+            function stopLocalTimer() {
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+            }
+        </script>
+</body>
+
+</html>

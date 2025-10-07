@@ -1,0 +1,16 @@
+{
+  "name": "as2_ali_abubaker",
+  "version": "1.0.0",
+  "description": "WebSockets auction assignment",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  },
+  "author": "Ali Abubaker",
+  "license": "MIT"
+}
