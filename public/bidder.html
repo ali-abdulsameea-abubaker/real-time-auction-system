@@ -1,11 +1,6 @@
 <!-- public/bidder.html -->
-
-<!-- StAuth10222: I Ali Abubaker, 000857347 certify that this material is my original work. No other person's work has been used without due acknowledgement.
-  I have not made my work available to anyone else. -->
-
 <!doctype html>
 <html>
-
 <head>
     <meta charset="utf-8" />
     <title>Bidder</title>
@@ -79,10 +74,31 @@
         form {
         margin-top: 15px;
         }
-        </style>
 
+        .history-section {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border-left: 4px solid #28a745;
+        }
+
+        .history-item {
+        padding: 8px;
+        margin: 5px 0;
+        background: white;
+        border-radius: 4px;
+        border: 1px solid #e0e0e0;
+        }
+
+        .congrats {
+        color: #28a745;
+        font-weight: bold;
+        margin-bottom: 10px;
+        }
+    </style>
+</head>
 <body>
-
     <div class="container">
         <h1>Bidder</h1>
 
@@ -90,165 +106,34 @@
             <label>Your name: <input id="bidderName" type="text"></label>
             <button id="joinBtn">Join</button>
             <br>
-            <button style="margin: 10px; " onclick="location.href='/'">Return to Home</button>
-            
-            
-
+            <button style="margin: 10px;" onclick="location.href='/'">Home</button>
             <p id="joinError" class="bad"></p>
         </div>
 
         <div id="waiting" style="display:none;">
             <div class="waiting">Waiting for the next auction to begin...</div>
-            <button style="margin: 10px;" onclick="location.href='/'">Return to Home</button>
+            <button style="margin: 10px;" onclick="location.href='/'">Home</button>
+            
+            <!-- Winner History Section - Only shown if this bidder won -->
+            <div id="winnerHistory" class="history-section" style="display:none;">
+                <div class="congrats">Your Winning History</div>
+                <div id="historyList"></div>
+            </div>
         </div>
 
         <div id="auctionSection" style="display:none;">
             <div>Item: <span id="itemName"></span></div>
-            <div>Current highest: $<span id="currentHighest">0.00</span> by <span id="currentHighestBidder"></span>
-            </div>
+            <div>Current highest: $<span id="currentHighest">0.00</span> by <span id="currentHighestBidder"></span></div>
             <div class="big">Timer: <span id="timer">--</span></div>
             <form id="bidForm">
                 <label>Your bid price: <input id="bidPrice" type="number" step="0.01" min="0.01"></label>
                 <button id="bidSubmit">Submit Bid</button>
-                <button style="margin: 10px;" onclick="location.href='/'">Return to Home</button>
-
+                <button style="margin: 10px;" onclick="location.href='/'">Home</button>
             </form>
             <p id="bidMsg"></p>
         </div>
     </div>
-    <script>
-        const socket = io();
 
-        const nameSection = document.getElementById('nameSection');
-        const joinBtn = document.getElementById('joinBtn');
-        const bidderNameInput = document.getElementById('bidderName');
-        const joinError = document.getElementById('joinError');
-
-        const waiting = document.getElementById('waiting');
-        const auctionSection = document.getElementById('auctionSection');
-        const itemNameEl = document.getElementById('itemName');
-        const currentHighest = document.getElementById('currentHighest');
-        const currentHighestBidder = document.getElementById('currentHighestBidder');
-        const timerEl = document.getElementById('timer');
-        const bidForm = document.getElementById('bidForm');
-        const bidPriceInput = document.getElementById('bidPrice');
-        const bidMsg = document.getElementById('bidMsg');
-        const bidSubmit = document.getElementById('bidSubmit');
-
-        let auctionEndTimestamp = null;
-        let timerInterval = null;
-
-        joinBtn.addEventListener('click', () => {
-            const name = bidderNameInput.value.trim();
-            if (!name) { joinError.textContent = 'Please enter your name'; return; }
-            joinError.textContent = '';
-            socket.emit('bidder:join', { name });
-        });
-
-        socket.on('bidder:joined', (data) => {
-            // show waiting text
-            nameSection.style.display = 'none';
-            waiting.style.display = 'block';
-            auctionSection.style.display = 'none';
-            bidMsg.textContent = '';
-        });
-
-        // when auction starts (or when joining while auction active)
-        socket.on('auction:started', (data) => {
-            waiting.style.display = 'none';
-            auctionSection.style.display = 'block';
-            itemNameEl.textContent = data.itemName;
-            currentHighest.textContent = Number(data.highestBid).toFixed(2);
-            currentHighestBidder.textContent = data.highestBidder;
-            auctionEndTimestamp = data.endTimestamp;
-            startLocalTimer();
-            // ensure submit enabled
-            bidSubmit.disabled = false;
-        });
-
-        socket.on('auction:update', (data) => {
-            currentHighest.textContent = Number(data.highestBid).toFixed(2);
-            currentHighestBidder.textContent = data.highestBidder;
-        });
-
-        socket.on('bid:response', (data) => {
-            if (!data) return;
-            if (data.success) {
-                bidMsg.textContent = data.message || 'You are highest';
-                bidMsg.className = 'good';
-            } else {
-                bidMsg.textContent = data.message || 'Bid rejected';
-                bidMsg.className = 'bad';
-            }
-        });
-
-        bidForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            bidMsg.textContent = '';
-            const price = Number(bidPriceInput.value);
-            if (isNaN(price) || price <= 0) {
-                bidMsg.textContent = 'Enter a valid price > 0';
-                bidMsg.className = 'bad';
-                return;
-            }
-            // send JSON
-            socket.emit('bid:submit', { price });
-            // clear input
-            bidPriceInput.value = '';
-        });
-
-        socket.on('auction:ended', (data) => {
-            // display winner and "waiting for next auction"
-            currentHighest.textContent = Number(data.price).toFixed(2);
-            currentHighestBidder.textContent = data.winner;
-            // show winner then waiting screen
-            bidMsg.textContent = `Auction ended. Winner: ${data.winner} ($${Number(data.price).toFixed(2)})`;
-            bidMsg.className = 'good';
-            bidSubmit.disabled = true;
-            stopLocalTimer();
-
-            // after showing ended, show waiting area but allow participation in future auctions
-            setTimeout(() => {
-                auctionSection.style.display = 'none';
-                waiting.style.display = 'block';
-            }, 3000);
-        });
-
-        socket.on('auction:reset', () => {
-            // auctioneer created new auction form; auction state cleared on server
-            auctionSection.style.display = 'none';
-            waiting.style.display = 'block';
-            stopLocalTimer();
-            bidMsg.textContent = '';
-        });
-
-        function startLocalTimer() {
-            stopLocalTimer();
-            if (!auctionEndTimestamp) {
-                timerEl.textContent = '--';
-                return;
-            }
-            function tick() {
-                const remaining = Math.max(0, Math.ceil((auctionEndTimestamp - Date.now()) / 1000));
-                const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
-                const ss = String(remaining % 60).padStart(2, '0');
-                timerEl.textContent = `${mm}:${ss}`;
-                if (remaining <= 0) {
-                    stopLocalTimer();
-                    bidSubmit.disabled = true;
-                }
-            }
-            tick();
-            timerInterval = setInterval(tick, 500);
-        }
-        function stopLocalTimer() {
-            if (timerInterval) {
-                clearInterval(timerInterval);
-                timerInterval = null;
-            }
-            timerEl.textContent = '--';
-        }
-    </script>
+    <script src="bidder.js"></script>
 </body>
-
 </html>
