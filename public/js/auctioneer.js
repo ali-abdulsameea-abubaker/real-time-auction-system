@@ -1,6 +1,15 @@
 // public/auctioneer.js
+
+// Auctioneer Client-Side Controller 
+// Oversees the creation of auctions, tracks bids in real time, and keeps an eye on them.
+// Manages the server's WebSocket connectivity for real-time auction updates.
+
+// Statement of Authorship
+// StAuth10222: I Ali Abubaker, 000857347 certify that this material is my original work. No other person's work has been used without due acknowledgement.I have not made my work available to anyone else. 
 const socket = io();
 
+
+// DOM element references
 const createSection = document.getElementById('create-section');
 const resultsSection = document.getElementById('results-section');
 const startBtn = document.getElementById('startBtn');
@@ -26,6 +35,7 @@ timeLimitInput.addEventListener('input', () => {
     timeValue.textContent = timeLimitInput.value;
 });
 
+// action will start when user click start
 startBtn.addEventListener('click', () => {
     createError.textContent = '';
     const name = itemNameInput.value.trim();
@@ -75,13 +85,14 @@ socket.on('auction:update', (data) => {
     }
 });
 
+// handling end action notification
 socket.on('auction:ended', (data) => {
     timerEl.textContent = '00:00';
     newAuctionBtn.disabled = false;
     resHighest.textContent = Number(data.price).toFixed(2);
     resHighestBidder.textContent = data.winner;
     stopLocalTimer();
-    
+
 });
 
 socket.on('auction:reset', () => {
@@ -122,7 +133,7 @@ function startLocalTimer() {
     tick();
     timerInterval = setInterval(tick, 500);
 }
-
+// end and stop and clear timer
 function stopLocalTimer() {
     if (timerInterval) {
         clearInterval(timerInterval);

@@ -1,8 +1,14 @@
 /*
+Statement of Authorship
 StAuth10222: I Ali Abubaker, 000857347 certify that this material is my original work. 
 No other person's work has been used without due acknowledgement. 
 I have not made my work available to anyone else.
 */
+
+// action sysytem server.js
+// main server action real timer for both actioner and bidder
+// handle webStocket connection
+// coomunication between actioner and bidder for price and letting both actioner and bdder to bid their price
 
 import express from "express";
 import http from "http";
@@ -15,37 +21,38 @@ const server = http.createServer(app);
 const io = new Server(server);
 const PORT = 3000;
 
-// Needed for ES modules (__dirname replacement)
+// Required for ES modules (replacement of __dirname)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve static files
+// Use the public directory to provide static files.
 app.use(express.static(path.join(__dirname, "public")));
 
-// Home page route
+// Route for the home page: serve from the HTML folder
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.sendFile(path.join(__dirname, "public", "html", "index.html"));
 });
 
-// Auctioneer and bidder routes
+// The html folder is used to serve the bidder and auctioneer routes.
 app.get("/auctioneer", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "auctioneer.html"));
-});
-app.get("/bidder", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "bidder.html"));
+  res.sendFile(path.join(__dirname, "public", "html", "auctioneer.html"));
 });
 
-// ---- Auction State ---- //
+app.get("/bidder", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "html", "bidder.html"));
+});
+
+// ----State of the Auction ---- //
 let auctionActive = false;
 let currentAuction = null;
 let bidders = {};
 let bidHistory = [];
 
-// ---- Socket.io Events ---- //
+// ---- Socket.io ---- //
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  // Start auction (Auctioneer)
+  // Auctioneer, start the auction
   socket.on("auction:start", (data) => {
     if (auctionActive) return;
 
@@ -66,7 +73,7 @@ io.on("connection", (socket) => {
 
     console.log(`Auction started for item: ${data.itemName}`);
 
-    // End auction automatically
+    // Automatically end the auction
     setTimeout(() => {
       if (auctionActive) {
         auctionActive = false;
@@ -79,7 +86,7 @@ io.on("connection", (socket) => {
     }, data.timeLimitSeconds * 1000);
   });
 
-  // Bidder joins
+  // The bidder enters
   socket.on("bidder:join", (data) => {
     socket.data.name = data.name;
     socket.emit("bidder:joined", { name: data.name });
@@ -89,7 +96,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Bidder submits bid
+  // The bidder makes a bid.
   socket.on("bid:submit", (data) => {
     if (!auctionActive || !currentAuction) return;
     const name = socket.data.name;
@@ -120,7 +127,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Auctioneer ends auction
+  // The auctioneer concludes the sale.
   socket.on("auction:end", () => {
     if (!auctionActive) return;
 
@@ -132,7 +139,7 @@ io.on("connection", (socket) => {
     console.log("Auction ended by auctioneer.");
   });
 
-  // Auctioneer starts a new auction
+  // A fresh auction is started by the auctioneer.
   socket.on("auction:new", () => {
     auctionActive = false;
     currentAuction = null;
@@ -146,9 +153,10 @@ io.on("connection", (socket) => {
   });
 });
 
-// ---- Start Server ---- //
+
+// ---- server starting---- //
 server.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-  console.log(`Auctioneer: http://localhost:${PORT}/auctioneer`);
-  console.log(`Bidder: http://localhost:${PORT}/bidder`);
+  console.log(`Server running on http://localhost:${PORT}`);  // CORRECT
+  console.log(`Auctioneer: http://localhost:${PORT}/auctioneer`);  // CORRECT
+  console.log(`Bidder: http://localhost:${PORT}/bidder`);  // CORRECT
 });
